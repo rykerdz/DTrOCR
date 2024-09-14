@@ -7,7 +7,7 @@ class DTrOCRConfig:
         lang: str,
         # gpt2_hf_model: str = 'openai-community/gpt2',
         vit_hf_model: str = 'google/vit-base-patch16-224',
-        vocab_size: Optional[int] = 50257,
+        # vocab_size: Optional[int] = 50257,
         max_position_embeddings: Optional[int] = 256,
         hidden_size: Optional[int] = 768,
         num_hidden_layers: Optional[int] = 12,
@@ -30,7 +30,7 @@ class DTrOCRConfig:
         self.patch_size = patch_size
         self.image_size = image_size
         self.num_channels = num_channels
-        self.vocab_size = vocab_size
+        self.vocab_size = self.define_vocab_size()
         self.max_position_embeddings = max_position_embeddings
         self.resid_pdrop = resid_pdrop
         self.embd_pdrop = embd_pdrop
@@ -52,3 +52,10 @@ class DTrOCRConfig:
             'ar': 'aubmindlab/aragpt2-base',
         }
         return model_map.get(self.lang.lower(), default_model)
+    
+    def define_vocab_size(self, default_vocab: int = 50257):
+        vocab_map = {
+            'en': 50257,
+            'ar': 64000,
+        }
+        return vocab_map.get(self.lang.lower(), default_vocab)
