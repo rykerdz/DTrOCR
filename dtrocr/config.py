@@ -4,7 +4,8 @@ from typing import Optional, Union, Tuple, List, Literal
 class DTrOCRConfig:
     def __init__(
         self,
-        gpt2_hf_model: str = 'openai-community/gpt2',
+        lang: str,
+        # gpt2_hf_model: str = 'openai-community/gpt2',
         vit_hf_model: str = 'google/vit-base-patch16-224',
         vocab_size: Optional[int] = 50257,
         max_position_embeddings: Optional[int] = 256,
@@ -20,7 +21,8 @@ class DTrOCRConfig:
         layer_norm_epsilon: Optional[float] = 1e-5,
         attn_implementation: Literal['sdpa', 'flash_attention_2'] = 'sdpa'
     ):
-        self.gpt2_hf_model = gpt2_hf_model
+        self.lang = lang
+        self.gpt2_hf_model = self.define_gpt_hf_model()
         self.vit_hf_model = vit_hf_model
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
@@ -43,3 +45,10 @@ class DTrOCRConfig:
         self.reorder_and_upcast_attn = False
         self.add_cross_attention = False
         self.activation_function = "gelu_new"
+        
+    def define_gpt_hf_model(self, default_model: str = 'openai-community/gpt2'):
+        model_map = {
+            'en': 'openai-community/gpt2',
+            'ar': 'aubmindlab/aragpt2-base',
+        }
+        return model_map.get(self.lang.lower(), default_model)
