@@ -34,8 +34,8 @@ def test_tokeniser_with_eos_token():
     tokeniser_output = tokeniser(texts=["هذه جملة", "هذه ليست جملة، آسف"])
 
     expected_input_ids = [
-        [280, 1043, 8162, 50256],
-        [280, 1043, 2434, 8162, 297, 49612, 50256]
+        [280, 1043, 8162, 63999],
+        [280, 1043, 2434, 8162, 297, 49612, 63999]
     ]
     expected_attention_mask = [
         [1, 1, 1, 1],
@@ -51,8 +51,8 @@ def test_tokeniser_with_eos_and_bos_tokens():
     tokeniser_output = tokeniser(texts=["هذه جملة", "هذه ليست جملة، آسف"])
 
     expected_input_ids = [
-        [50256, 280, 1043, 8162, 50256],
-        [50256, 280, 1043, 2434, 8162, 297, 49612, 50256]
+        [63999, 280, 1043, 8162, 63999],
+        [63999, 280, 1043, 2434, 8162, 297, 49612, 63999]
     ]
     expected_attention_mask = [
         [1, 1, 1, 1, 1],
