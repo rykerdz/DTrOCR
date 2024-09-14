@@ -6,7 +6,7 @@ from PIL import Image
 
 
 def test_tokeniser_with_bos_token():
-    tokeniser = DTrOCRProcessor(config=DTrOCRConfig(), add_bos_token=True)
+    tokeniser = DTrOCRProcessor(config=DTrOCRConfig(lang='en'), add_bos_token=True)
     tokeniser_output = tokeniser(texts=["This is a sentence", "That is not a sentence, sorry"])
 
     expected_input_ids = [
@@ -23,7 +23,7 @@ def test_tokeniser_with_bos_token():
 
 
 def test_tokeniser_with_eos_token():
-    tokeniser = DTrOCRProcessor(config=DTrOCRConfig(), add_eos_token=True)
+    tokeniser = DTrOCRProcessor(config=DTrOCRConfig(lang='en'), add_eos_token=True)
     tokeniser_output = tokeniser(texts=["This is a sentence", "That is not a sentence, sorry"])
 
     expected_input_ids = [
@@ -40,7 +40,7 @@ def test_tokeniser_with_eos_token():
 
 
 def test_tokeniser_with_eos_and_bos_tokens():
-    tokeniser = DTrOCRProcessor(config=DTrOCRConfig(), add_bos_token=True, add_eos_token=True)
+    tokeniser = DTrOCRProcessor(config=DTrOCRConfig(lang='en'), add_bos_token=True, add_eos_token=True)
     tokeniser_output = tokeniser(texts=["This is a sentence", "That is not a sentence, sorry"])
 
     expected_input_ids = [
@@ -59,7 +59,7 @@ def test_tokeniser_with_eos_and_bos_tokens():
 def test_image_processor():
     batch_size = random.choice(range(1, 10))
 
-    config = DTrOCRConfig()
+    config = DTrOCRConfig(lang='en')
     processor = DTrOCRProcessor(config=config)
     tokeniser_output = processor(
         images=[Image.new("RGB", config.image_size[::-1]) for _ in range(batch_size)],

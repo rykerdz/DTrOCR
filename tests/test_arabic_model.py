@@ -12,7 +12,7 @@ from dataclasses import asdict
 BATCH_SIZE = random.choice(range(1, 10))
 BEAM_SIZE = random.choice(range(1, 3))
 
-CONFIG = DTrOCRConfig(lang='en')
+CONFIG = DTrOCRConfig(lang='ar')
 MODEL = DTrOCRLMHeadModel(CONFIG)
 
 # set model to evaluation mode
@@ -24,7 +24,7 @@ def test_model():
 
     inputs = processor(
         images=[Image.new("RGB", CONFIG.image_size[::-1]) for _ in range(BATCH_SIZE)],
-        texts=["This is a sentence" for _ in range(BATCH_SIZE)],
+        texts=["جُمْلَةٌ لاِخْتِبَارِ أَرَا جِي بِي تِي" for _ in range(BATCH_SIZE)],
         padding=True,
         return_tensors="pt",
         return_labels=True

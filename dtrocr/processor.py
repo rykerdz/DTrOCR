@@ -1,4 +1,7 @@
-from transformers import GPT2Tokenizer, AutoImageProcessor
+from transformers import GPT2TokenizerFast, AutoImageProcessor
+
+# AraBERT preprocessor
+from arabert.preprocess import ArabertPreprocessor
 
 from PIL import Image
 from typing import List, Union
@@ -7,7 +10,7 @@ from data import DTrOCRProcessorOutput
 
 
 class DTrOCRProcessor:
-    def __init__(self, config: DTrOCRConfig, add_bos_token: bool = False, add_eos_token: bool = False):
+    def __init__(self, config: DTrOCRConfig, lang: str, add_bos_token: bool = False, add_eos_token: bool = False):
         self.vit_processor = AutoImageProcessor.from_pretrained(
             config.vit_hf_model,
             size={
@@ -16,7 +19,11 @@ class DTrOCRProcessor:
             },
             use_fast=True
         )
-        self.tokeniser = GPT2Tokenizer.from_pretrained(
+        self.preprocessor = ArabertPreprocessor(
+            model_name=config.gpt2_hf_model
+        ) if lang=='ar' else None
+        
+        self.tokeniser = GPT2TokenizerFast.from_pretrained(
             config.gpt2_hf_model,
             add_bos_token=add_bos_token,
             model_max_length=config.max_position_embeddings - int(
@@ -41,6 +48,11 @@ class DTrOCRProcessor:
         *args,
         **kwargs
     ) -> DTrOCRProcessorOutput:
+        # Clean arabic text
+        texts = self.preprocessor(
+            texts
+        ) if self.preprocessor else texts
+        
         text_inputs = self.tokeniser(
             texts, padding=padding, *args, **kwargs
         ) if texts is not None else None

@@ -523,7 +523,7 @@ class DTrOCRLMHeadModel(nn.Module):
 
         model_inputs = {
             'input_ids': input_ids,
-            "past_key_values": past_key_values,
+            'past_key_values': past_key_values,
             'pixel_values': kwargs['pixel_values'],
             'use_cache': kwargs.get("use_cache"),
             'labels': kwargs.get("labels"),
