@@ -59,11 +59,16 @@ class DTrOCRModel(nn.Module):
 
         patch_embeddings = self.patch_embeddings(pixel_values) if past_length == 0 else None
         token_embeddings = self.token_embedding(input_ids)
+        
+        #######
+        print(patch_embeddings.shape)
+        print(token_embeddings.shape)
 
         if patch_embeddings is not None:
             patch_and_token_embeddings = torch.concat([patch_embeddings, token_embeddings], dim=-2)
         else:
             patch_and_token_embeddings = token_embeddings
+            
         input_shape = patch_and_token_embeddings.shape
 
         if position_ids is None or past_length == 0:

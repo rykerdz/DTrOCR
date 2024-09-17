@@ -49,7 +49,7 @@ class DTrOCRProcessor:
         **kwargs
     ) -> DTrOCRProcessorOutput:
         # Clean arabic text
-        texts = self.preprocessor(
+        texts = self.preprocessor.preprocess(
             texts
         ) if self.preprocessor else texts
         
