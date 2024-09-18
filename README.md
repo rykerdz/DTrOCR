@@ -49,7 +49,7 @@ path_to_image = ""  # path to image file
 
 inputs = processor(
     images=Image.open(path_to_image).convert('RGB'),
-    texts=processor.tokeniser.bos_token,
+    texts=processor.tokenizer.bos_token,
     return_tensors="pt"
 )
 
@@ -60,7 +60,7 @@ model_output = model.generate(
     use_cache=True  # defaults to True if not specified
 )
 
-predicted_text = processor.tokeniser.decode(model_output[0], skip_special_tokens=True)
+predicted_text = processor.tokenizer.decode(model_output[0], skip_special_tokens=True)
 ```
 ## Dataset
 Notes on generating dataset for pre-training DTrOCR model can be found [here](tools/PRETRAINING_DATASET.md).

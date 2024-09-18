@@ -1,12 +1,12 @@
-from transformers import GPT2TokenizerFast, AutoImageProcessor
+from transformers import GPT2Tokenizer, AutoImageProcessor
 
 # AraBERT preprocessor
 from arabert.preprocess import ArabertPreprocessor
 
 from PIL import Image
 from typing import List, Union
-from config import DTrOCRConfig
-from data import DTrOCRProcessorOutput
+from dtrocr.config import DTrOCRConfig
+from dtrocr.data import DTrOCRProcessorOutput
 
 
 class DTrOCRProcessor:
@@ -23,21 +23,20 @@ class DTrOCRProcessor:
             model_name=config.gpt2_hf_model
         ) if config.lang=='ar' else None
         
-        self.tokeniser = GPT2TokenizerFast.from_pretrained(
+        self.tokenizer = GPT2Tokenizer.from_pretrained(
             config.gpt2_hf_model,
             add_bos_token=add_bos_token,
             model_max_length=config.max_position_embeddings - int(
                 (config.image_size[0] / config.patch_size[0]) * (config.image_size[1] / config.patch_size[1])
             )
         )
-        self.tokeniser.pad_token = self.tokeniser.bos_token
-        self.tokeniser.add_eos_token = add_eos_token
+        self.tokenizer.pad_token = self.tokenizer.bos_token
+        self.tokenizer.add_eos_token = add_eos_token
 
-        # Bind a new method to gpt2_tokeniser
-        self.tokeniser.build_inputs_with_special_tokens = modified_build_inputs_with_special_tokens.__get__(
-            self.tokeniser
+        # Bind a new method to gpt2_tokenizer
+        self.tokenizer.build_inputs_with_special_tokens = modified_build_inputs_with_special_tokens.__get__(
+            self.tokenizer
         )
-
     def __call__(
         self,
         images: Union[Image.Image, List[Image.Image]] = None,
@@ -49,11 +48,11 @@ class DTrOCRProcessor:
         **kwargs
     ) -> DTrOCRProcessorOutput:
         # Clean arabic text
-        texts = self.preprocessor.preprocess(
-            texts
-        ) if self.preprocessor else texts
+        texts = [
+            self.preprocessor.preprocess(t) for t in texts
+        ] if (self.preprocessor and texts is not None) else texts
         
-        text_inputs = self.tokeniser(
+        text_inputs = self.tokenizer(
             texts, padding=padding, *args, **kwargs
         ) if texts is not None else None
 
