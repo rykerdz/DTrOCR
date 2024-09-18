@@ -2,9 +2,9 @@ import torch
 from torch import nn, Tensor
 from typing import Optional, Tuple, Dict, Any
 
-from config import DTrOCRConfig
-from processor import DTrOCRProcessor
-from data import DTrOCRLMHeadModelOutput, DTrOCRModelOutput, DTrOCRProcessorOutput
+from dtrocr.config import DTrOCRConfig
+from dtrocr.processor import DTrOCRProcessor
+from dtrocr.data import DTrOCRLMHeadModelOutput, DTrOCRModelOutput, DTrOCRProcessorOutput
 
 from transformers.models.vit.modeling_vit import ViTPatchEmbeddings
 from transformers.generation.logits_process import LogitsProcessorList
@@ -61,8 +61,7 @@ class DTrOCRModel(nn.Module):
         token_embeddings = self.token_embedding(input_ids)
         
         #######
-        print(patch_embeddings.shape)
-        print(token_embeddings.shape)
+        #print(f"input:{input_ids}")
 
         if patch_embeddings is not None:
             patch_and_token_embeddings = torch.concat([patch_embeddings, token_embeddings], dim=-2)
@@ -212,11 +211,11 @@ class DTrOCRLMHeadModel(nn.Module):
         }
         generation_config = GenerationConfig(
             max_new_tokens=1,
-            pad_token_id=processor.tokeniser.pad_token_id,
-            eos_token_id=processor.tokeniser.eos_token_id,
-            bos_token_id=processor.tokeniser.bos_token_id,
+            pad_token_id=processor.tokenizer.pad_token_id,
+            eos_token_id=processor.tokenizer.eos_token_id,
+            bos_token_id=processor.tokenizer.bos_token_id,
             num_beams=num_beams,
-            max_length=processor.tokeniser.model_max_length
+            max_length=processor.tokenizer.model_max_length
         )
 
         # interleave input_ids with `num_beams` additional sequences per batch
@@ -451,7 +450,7 @@ class DTrOCRLMHeadModel(nn.Module):
                     "stop strings, you must pass the model's tokenizer to the `tokenizer` argument of `generate`."
                 )
             criteria.append(StopStringCriteria(
-                stop_strings=generation_config.stop_strings, tokenizer=processor.tokeniser)
+                stop_strings=generation_config.stop_strings, tokenizer=processor.tokenizer)
             )
         if generation_config.eos_token_id is not None:
             criteria.append(EosTokenCriteria(eos_token_id=generation_config.eos_token_id))

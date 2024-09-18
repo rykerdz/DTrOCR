@@ -47,7 +47,7 @@ def test_generation_to_be_deterministic():
 
     inputs = processor(
         images=[Image.new("RGB", CONFIG.image_size[::-1]) for _ in range(BATCH_SIZE)],
-        texts=[processor.tokeniser.bos_token for _ in range(BATCH_SIZE)],
+        texts=[processor.tokenizer.bos_token for _ in range(BATCH_SIZE)],
         return_tensors="pt"
     )
 
@@ -61,7 +61,7 @@ def test_generation_with_and_without_caching():
 
     inputs = processor(
         images=[Image.new("RGB", CONFIG.image_size[::-1]) for _ in range(BATCH_SIZE)],
-        texts=[processor.tokeniser.bos_token for _ in range(BATCH_SIZE)],
+        texts=[processor.tokenizer.bos_token for _ in range(BATCH_SIZE)],
         return_tensors="pt"
     )
 
