@@ -21,4 +21,5 @@ project:
   train:
     epochs: 1
     lr: 1e-4
+    save_every_n_batches: 10000
 
