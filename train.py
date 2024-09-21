@@ -246,10 +246,15 @@ if __name__ == "__main__":
 
     # Mixed Precision Setup
     use_amp = True
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    scaler = torch.cuda.amp.GradScaler(device_type='cuda', enabled=use_amp)
 
+    # Move model to GPU and convert to half precision 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = model.to(device).half() 
+    model.train() 
+    
     # Optimizer
-    optimizer = torch.optim.AdamW(model.parameters(), lr=train_conf['learning_rate'])
+    optimizer = torch.optim.AdamW(model.parameters(), lr=float(train_conf['learning_rate']))
 
     # Training Loop
     for epoch in range(train_conf['num_epochs']):
