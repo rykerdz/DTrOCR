@@ -24,4 +24,5 @@ project:
     save_every_n_batches: 10000
     validate_every_n_batches: 1000
     print_every_n_batches: 10
+    evaluation_metric: cer
 

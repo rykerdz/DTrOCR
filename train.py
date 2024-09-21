@@ -12,6 +12,7 @@ import random
 from typing import Tuple
 import os
 import re
+from datasets import load_metric
 
 # Dataset Class
 class S3ImageDataset(Dataset):
@@ -19,7 +20,7 @@ class S3ImageDataset(Dataset):
             self, 
             bucket_name: str, 
             folder: str, 
-            config: DTrOCRConfig, 
+            processor: DTrOCRProcessor, 
             cache_file: str='cache/file_list_5m.pkl', 
             force_reload: bool=False,
             split: str='train',
@@ -34,7 +35,7 @@ class S3ImageDataset(Dataset):
         Args:
             bucket_name (str): Name of the S3 bucket containing the dataset.
             folder (str): Path to the folder within the bucket containing the dataset.
-            config (DTrOCRConfig): Configuration object for the DTrOCR model.
+            processor (DTrOCRProcessor): Processor object for the DTrOCR model.
             cache_file (str, optional): Path to the file for caching the file list. Defaults to 'cache/file_list_5m.pkl'.
             force_reload (bool, optional): If True, forces reloading the file list from S3, ignoring the cache. Defaults to False.
             split (str, optional): Specifies which part of the dataset to load: 'train', 'val', or 'test'. Defaults to 'train'.
@@ -45,7 +46,7 @@ class S3ImageDataset(Dataset):
         self.bucket = boto3.client('s3')
         self.bucket_name = bucket_name
         self.folder = folder
-        self.processor = DTrOCRProcessor(config, add_bos_token=True, add_eos_token=True)
+        self.processor = processor
         self.cache_file = cache_file
         self.force_reload = force_reload
         self.split = split
@@ -146,7 +147,7 @@ class S3ImageDataset(Dataset):
             return None  # Return None in case of error
       
 # Evaluate func borrowed from IAM notebook  
-def evaluate_model(model: torch.nn.Module, dataloader: DataLoader) -> Tuple[float, float]:
+def evaluate_model_acc(model: torch.nn.Module, dataloader: DataLoader) -> Tuple[float, float]:
     model.eval()
     loss, accuracy = [], []
     with torch.no_grad():
@@ -163,6 +164,26 @@ def evaluate_model(model: torch.nn.Module, dataloader: DataLoader) -> Tuple[floa
     accuracy = sum(accuracy) / len(accuracy)
     model.train()
     return loss, accuracy
+
+def evaluate_model_cer(model: torch.nn.Module, dataloader: DataLoader, processor: DTrOCRProcessor) -> float:
+    model.eval()
+    cers = []
+    with torch.no_grad():
+        for i, batch in enumerate(dataloader):
+            batch = send_inputs_to_device(batch, device=device)
+
+            generated_ids = model.generate(batch["pixel_values"])
+            generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)
+            labels = processor.batch_decode(batch["labels"], skip_special_tokens=True)
+
+            cers.extend(ev_metric.compute(predictions=generated_text, references=labels))
+
+            if i % 100 == 0:
+                print(f"Evaluating: Batch {i}/{len(dataloader)}")
+
+    avg_cer = sum(cers) / len(cers)
+    model.train()
+    return avg_cer
 
 def send_inputs_to_device(dictionary, device):
     return {key: value.to(device=device) if isinstance(value, torch.Tensor) else value for key, value in dictionary.items()}
@@ -181,15 +202,18 @@ if __name__ == "__main__":
         dataset_conf = config_data['project']['dataset']
         train_conf = config_data['project']['train']
     
+    # exp save dir
     save_path = f"{config_data['project']['language']}_{config_data['project']['exp_name']}"
     os.makedirs(save_path, exist_ok=True) 
  
     # Dataloader and Processor
     config = DTrOCRConfig(lang=dataset_conf['language'])
+    processor = DTrOCRProcessor(config, add_bos_token=True, add_eos_token=True)
     
     train_dataset = S3ImageDataset(
         dataset_conf['bucket_name'], 
-        dataset_conf['folder'], config, 
+        dataset_conf['folder'], 
+        processor, 
         cache_file=dataset_conf['cache_file'], 
         force_reload=dataset_conf['force_reload'],
         split='train',
@@ -199,7 +223,8 @@ if __name__ == "__main__":
     
     test_dataset = S3ImageDataset(
         dataset_conf['bucket_name'], 
-        dataset_conf['folder'], config, 
+        dataset_conf['folder'], 
+        processor, 
         cache_file=dataset_conf['cache_file'], 
         force_reload=dataset_conf['force_reload'],
         split='test',
@@ -209,7 +234,8 @@ if __name__ == "__main__":
     
     val_dataset = S3ImageDataset(
         dataset_conf['bucket_name'], 
-        dataset_conf['folder'], config, 
+        dataset_conf['folder'], 
+        processor, 
         cache_file=dataset_conf['cache_file'], 
         force_reload=dataset_conf['force_reload'],
         split='val',
@@ -260,9 +286,14 @@ if __name__ == "__main__":
     # Optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=float(train_conf['learning_rate']))
 
+    # Evaluation metric, cer only for now
+    ev_metric = None
+    if train_conf['evaluation_metric'] == 'cer':
+        ev_metric = load_metric("cer")  # Load the CER metric
+    
     # Training Loop
     for epoch in range(train_conf['num_epochs']):
-        epoch_losses, epoch_accuracies = [], []
+        losses, accuracy = [], []
         for batch_idx, batch in enumerate(train_loader):
             if batch is None:
                 continue
@@ -279,8 +310,8 @@ if __name__ == "__main__":
             scaler.update()
 
 
-            epoch_losses.append(outputs.loss.item())
-            epoch_accuracies.append(outputs.accuracy.item())
+            losses.append(outputs.loss.item())
+            accuracy.append(outputs.accuracy.item())
 
             if batch_idx % train_conf['print_every_n_batches'] == 0:
                 print(f"Epoch: {epoch + 1}/{train_conf['num_epochs']}, Batch: {batch_idx}/{len(train_loader)}, Loss: {loss.item()}")
@@ -288,13 +319,15 @@ if __name__ == "__main__":
             if batch_idx != 0: 
                 if batch_idx % train_conf['validate_every_n_batches'] == 0 or batch_idx == len(train_loader) - 1:
                     # Calculate and print average train loss and accuracy
-                    train_loss = sum(epoch_losses) / len(epoch_losses)
-                    train_accuracy = sum(epoch_accuracies) / len(epoch_accuracies)
+                    train_loss = sum(losses) / len(losses)
+                    train_accuracy = sum(accuracy) / len(accuracy)
                     print(f"Epoch: {epoch + 1} - Train loss: {train_loss}, Train accuracy: {train_accuracy}")
 
                     # Evaluate the model
-                    val_loss, val_accuracy = evaluate_model(model, val_loader)
+                    val_loss, val_accuracy = evaluate_model_acc(model, val_loader)
                     print(f"Validation Loss: {val_loss}, Validation Accuracy: {val_accuracy}") 
+                    val_cer = evaluate_model_cer(model, val_loader, processor)
+                    print(f"Validation CER: {val_cer}")
                     
                 # Checkpointing
                 if batch_idx % train_conf['save_every_n_batches'] == 0 or batch_idx == len(train_loader) - 1:
