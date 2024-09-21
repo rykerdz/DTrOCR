@@ -12,7 +12,7 @@ import random
 from typing import Tuple
 import os
 import re
-from datasets import load_metric
+import evaluate
 
 # Dataset Class
 class S3ImageDataset(Dataset):
@@ -165,9 +165,10 @@ def evaluate_model_acc(model: torch.nn.Module, dataloader: DataLoader) -> Tuple[
     model.train()
     return loss, accuracy
 
+
 def evaluate_model_cer(model: torch.nn.Module, dataloader: DataLoader, processor: DTrOCRProcessor) -> float:
     model.eval()
-    cers = []
+    all_predictions, all_labels = [], [] 
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
             batch = send_inputs_to_device(batch, device=device)
@@ -176,12 +177,14 @@ def evaluate_model_cer(model: torch.nn.Module, dataloader: DataLoader, processor
             generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)
             labels = processor.batch_decode(batch["labels"], skip_special_tokens=True)
 
-            cers.extend(ev_metric.compute(predictions=generated_text, references=labels))
+            all_predictions.extend(generated_text)
+            all_labels.extend(labels)
 
             if i % 100 == 0:
                 print(f"Evaluating: Batch {i}/{len(dataloader)}")
 
-    avg_cer = sum(cers) / len(cers)
+    results = ev_metric.compute(predictions=all_predictions, references=all_labels)
+    avg_cer = results["cer"] 
     model.train()
     return avg_cer
 
@@ -189,6 +192,7 @@ def send_inputs_to_device(dictionary, device):
     return {key: value.to(device=device) if isinstance(value, torch.Tensor) else value for key, value in dictionary.items()}
 
 
+ev_metric = None
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train DTrOCR model on S3 dataset.')
@@ -287,9 +291,8 @@ if __name__ == "__main__":
     optimizer = torch.optim.AdamW(model.parameters(), lr=float(train_conf['learning_rate']))
 
     # Evaluation metric, cer only for now
-    ev_metric = None
     if train_conf['evaluation_metric'] == 'cer':
-        ev_metric = load_metric("cer")  # Load the CER metric
+        ev_metric = evaluate.load("cer")  # Load the CER metric
     
     # Training Loop
     for epoch in range(train_conf['num_epochs']):
