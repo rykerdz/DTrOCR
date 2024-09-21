@@ -180,7 +180,7 @@ if __name__ == "__main__":
         dataset_conf = config_data['project']['dataset']
         train_conf = config_data['project']['train']
     
-    save_path = f"{config_data['project']['language']}_{config_data['project']['exp_name'].replace(" ", "_")}"
+    save_path = f"{config_data['project']['language']}_{config_data['project']['exp_name']}"
     os.makedirs(save_path, exist_ok=True) 
  
     # Dataloader and Processor
@@ -281,21 +281,22 @@ if __name__ == "__main__":
             epoch_losses.append(outputs.loss.item())
             epoch_accuracies.append(outputs.accuracy.item())
 
-            if batch_idx % train_conf['print_every_n_batches'] == 0:
-                print(f"Epoch: {epoch + 1}/{train_conf['num_epochs']}, Batch: {batch_idx}/{len(train_loader)}, Loss: {loss.item()}")
+            if batch_idx != 0: 
+                if batch_idx % train_conf['print_every_n_batches'] == 0:
+                    print(f"Epoch: {epoch + 1}/{train_conf['num_epochs']}, Batch: {batch_idx}/{len(train_loader)}, Loss: {loss.item()}")
 
-            if batch_idx % train_conf['validate_every_n_batches'] == 0 or batch_idx == len(train_loader) - 1:
-                # Calculate and print average train loss and accuracy
-                train_loss = sum(epoch_losses) / len(epoch_losses)
-                train_accuracy = sum(epoch_accuracies) / len(epoch_accuracies)
-                print(f"Epoch: {epoch + 1} - Train loss: {train_loss}, Train accuracy: {train_accuracy}")
+                if batch_idx % train_conf['validate_every_n_batches'] == 0 or batch_idx == len(train_loader) - 1:
+                    # Calculate and print average train loss and accuracy
+                    train_loss = sum(epoch_losses) / len(epoch_losses)
+                    train_accuracy = sum(epoch_accuracies) / len(epoch_accuracies)
+                    print(f"Epoch: {epoch + 1} - Train loss: {train_loss}, Train accuracy: {train_accuracy}")
 
-                # Evaluate the model
-                val_loss, val_accuracy = evaluate_model(model, val_loader)
-                print(f"Validation Loss: {val_loss}, Validation Accuracy: {val_accuracy}") 
-                 
-            # Checkpointing
-            if batch_idx % train_conf['save_every_n_batches'] == 0 or batch_idx == len(train_loader) - 1:
-                checkpoint_name = f"{save_path}/checkpoint_batch{batch_idx}.pth" 
-                torch.save(model.state_dict(), checkpoint_name)
-                print(f"Saved checkpoint: {checkpoint_name}")
+                    # Evaluate the model
+                    val_loss, val_accuracy = evaluate_model(model, val_loader)
+                    print(f"Validation Loss: {val_loss}, Validation Accuracy: {val_accuracy}") 
+                    
+                # Checkpointing
+                if batch_idx % train_conf['save_every_n_batches'] == 0 or batch_idx == len(train_loader) - 1:
+                    checkpoint_name = f"{save_path}/checkpoint_batch{batch_idx}.pth" 
+                    torch.save(model.state_dict(), checkpoint_name)
+                    print(f"Saved checkpoint: {checkpoint_name}")
