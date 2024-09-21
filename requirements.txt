@@ -4,4 +4,4 @@ transformers==4.43.3
 arabert==1.0.1
 boto3
 awscli
-datasets
+evaluate
