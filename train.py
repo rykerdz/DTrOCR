@@ -173,9 +173,12 @@ def evaluate_model_cer(model: torch.nn.Module, dataloader: DataLoader, processor
         for i, batch in enumerate(dataloader):
             batch = send_inputs_to_device(batch, device=device)
 
-            generated_ids = model.generate(batch["pixel_values"])
-            generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)
-            labels = processor.batch_decode(batch["labels"], skip_special_tokens=True)
+            generated_ids = model.generate(
+                inputs=batch, 
+                processor=processor
+            )
+            generated_text = processor.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+            labels = processor.tokenizer.batch_decode(batch["labels"], skip_special_tokens=True)
 
             all_predictions.extend(generated_text)
             all_labels.extend(labels)
