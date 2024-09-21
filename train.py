@@ -1,5 +1,6 @@
 import boto3
 from PIL import Image
+import torch
 from torch.utils.data import Dataset, DataLoader
 from dtrocr.config import DTrOCRConfig
 from dtrocr.model import DTrOCRLMHeadModel
@@ -8,6 +9,7 @@ import pickle
 import argparse
 import yaml
 import random
+from typing import Tuple
 
 # Dataset Class
 class S3ImageDataset(Dataset):
@@ -140,6 +142,29 @@ class S3ImageDataset(Dataset):
         except Exception as e:
             print(f"Error loading image from S3: {e}")
             return None, None  # Return None in case of error
+      
+# Evaluate func borrowed from IAM notebook  
+def evaluate_model(model: torch.nn.Module, dataloader: DataLoader) -> Tuple[float, float]:
+    model.eval()
+    loss, accuracy = [], []
+    with torch.no_grad():
+        for i, inputs in enumerate(dataloader):
+            inputs = send_inputs_to_device(inputs, device=0)
+            outputs = model(**inputs)
+            loss.append(outputs.loss.item())
+            accuracy.append(outputs.accuracy.item())
+
+            if i % 100 == 0:  # Print progress every 100 batches
+                print(f"Evaluating: Batch {i}/{len(dataloader)}")
+
+    loss = sum(loss) / len(loss)
+    accuracy = sum(accuracy) / len(accuracy)
+    model.train()
+    return loss, accuracy
+
+def send_inputs_to_device(dictionary, device):
+    return {key: value.to(device=device) if isinstance(value, torch.Tensor) else value for key, value in dictionary.items()}
+
 
 
 if __name__ == "__main__":
@@ -216,5 +241,53 @@ if __name__ == "__main__":
     print("Dataset in ready!")
 
     # Model
-    #model = DTrOCRLMHeadModel(config)
-    #model.train()  # set model to training mode
+    model = DTrOCRLMHeadModel(config)
+    model.train()  # set model to training mode
+
+    # Mixed Precision Setup
+    use_amp = True
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+
+    # Optimizer
+    optimizer = torch.optim.AdamW(model.parameters(), lr=train_conf['learning_rate'])
+
+    # Training Loop
+    for epoch in range(train_conf['num_epochs']):
+        epoch_losses, epoch_accuracies = [], []
+        for batch_idx, batch in enumerate(train_loader):
+            if batch is None:
+                continue
+
+            optimizer.zero_grad()
+            batch = send_inputs_to_device(batch, device=0)  # Send batch to GPU
+
+            with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
+                outputs = model(**batch)
+                loss = outputs.loss
+
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+
+
+            epoch_losses.append(outputs.loss.item())
+            epoch_accuracies.append(outputs.accuracy.item())
+
+            if batch_idx % 100 == 0:
+                print(f"Epoch: {epoch + 1}/{train_conf['num_epochs']}, Batch: {batch_idx}/{len(train_loader)}, Loss: {loss.item()}")
+
+        # Calculate and print average train loss and accuracy for the epoch
+        train_loss = sum(epoch_losses) / len(epoch_losses)
+        train_accuracy = sum(epoch_accuracies) / len(epoch_accuracies)
+        print(f"Epoch: {epoch + 1} - Train loss: {train_loss}, Train accuracy: {train_accuracy}")
+
+        # Evaluate the model after each epoch
+        val_loss, val_accuracy = evaluate_model(model, val_loader)
+        print(f"Validation Loss: {val_loss}, Validation Accuracy: {val_accuracy}")  
+
+
+        # Checkpointing
+        if batch_idx % train_conf['save_every_n_batches'] == 0 or batch_idx == len(train_loader) - 1:
+            checkpoint_name = f"checkpoint_batch{batch_idx}.pth" 
+            torch.save(model.state_dict(), checkpoint_name)
+            print(f"Saved checkpoint: {checkpoint_name}")
