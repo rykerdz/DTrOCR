@@ -11,6 +11,7 @@ import yaml
 import random
 from typing import Tuple
 import os
+import re
 
 # Dataset Class
 class S3ImageDataset(Dataset):
@@ -126,7 +127,7 @@ class S3ImageDataset(Dataset):
         try:
             obj = self.bucket.get_object(Bucket=self.bucket_name, Key=file_key)
             img = Image.open(obj['Body']).convert('RGB')
-            label = " ".join(file_key.strip(".png").split('/')[-1].split('_')[2:])
+            label = re.sub(r'generated_images/img_\d+_|\.png', '', file_key).replace("_", " ")
             inputs = self.processor(
                 images=img,
                 texts=label,
@@ -142,7 +143,7 @@ class S3ImageDataset(Dataset):
             }
         except Exception as e:
             print(f"Error loading image from S3: {e}")
-            return None, None  # Return None in case of error
+            return None  # Return None in case of error
       
 # Evaluate func borrowed from IAM notebook  
 def evaluate_model(model: torch.nn.Module, dataloader: DataLoader) -> Tuple[float, float]:
@@ -281,10 +282,10 @@ if __name__ == "__main__":
             epoch_losses.append(outputs.loss.item())
             epoch_accuracies.append(outputs.accuracy.item())
 
+            if batch_idx % train_conf['print_every_n_batches'] == 0:
+                print(f"Epoch: {epoch + 1}/{train_conf['num_epochs']}, Batch: {batch_idx}/{len(train_loader)}, Loss: {loss.item()}")
+                
             if batch_idx != 0: 
-                if batch_idx % train_conf['print_every_n_batches'] == 0:
-                    print(f"Epoch: {epoch + 1}/{train_conf['num_epochs']}, Batch: {batch_idx}/{len(train_loader)}, Loss: {loss.item()}")
-
                 if batch_idx % train_conf['validate_every_n_batches'] == 0 or batch_idx == len(train_loader) - 1:
                     # Calculate and print average train loss and accuracy
                     train_loss = sum(epoch_losses) / len(epoch_losses)
