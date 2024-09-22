@@ -5,3 +5,4 @@ arabert==1.0.1
 boto3
 awscli
 evaluate
+jiwer
