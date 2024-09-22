@@ -48,10 +48,18 @@ class DTrOCRProcessor:
         **kwargs
     ) -> DTrOCRProcessorOutput:
         # Clean arabic text
-        texts = [
-            self.preprocessor.preprocess(t) for t in texts
-        ] if (self.preprocessor and texts is not None) else texts
         
+        # check for bos token
+        if self.preprocessor and texts is not None:
+            if texts != self.tokenizer.bos_token:
+                # batch handeling
+                if isinstance(texts, list):
+                    texts = [
+                        self.preprocessor.preprocess(t) for t in texts
+                    ]
+                elif isinstance(texts, str):
+                    texts = self.preprocessor.preprocess(texts)
+                    
         text_inputs = self.tokenizer(
             texts, padding=padding, *args, **kwargs
         ) if texts is not None else None

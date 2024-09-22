@@ -5,6 +5,7 @@ from torch.utils.data import Dataset, DataLoader
 from dtrocr.config import DTrOCRConfig
 from dtrocr.model import DTrOCRLMHeadModel
 from dtrocr.processor import DTrOCRProcessor
+from dtrocr.data import DTrOCRProcessorOutput
 import pickle
 import argparse
 import yaml
@@ -171,10 +172,17 @@ def evaluate_model_cer(model: torch.nn.Module, dataloader: DataLoader, processor
     all_predictions, all_labels = [], [] 
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
-            batch = send_inputs_to_device(batch, device=device)
+            # cast to a DTrOCRProcessorOutput
+            inputs = DTrOCRProcessorOutput(
+                pixel_values=batch['pixel_values'],
+                input_ids=batch['input_ids'],
+                attention_mask=batch['attention_mask'],
+                labels=batch['labels']
+            )
+            inputs = send_inputs_to_device(inputs, device=device)
 
             generated_ids = model.generate(
-                inputs=batch, 
+                inputs=inputs, 
                 processor=processor
             )
             generated_text = processor.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
