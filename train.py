@@ -56,34 +56,44 @@ class S3ImageDataset(Dataset):
 
     def _load_or_create_cache(self):
         """
-        Loads the file list from cache or creates it by fetching from S3.
+        Loads the file list from cache or creates it by fetching from S3 and splitting it.
         """
         try:
             if self.force_reload:
-                raise FileNotFoundError
+                # Enhanced warning message
+                print("WARNING: Force reload is enabled!")
+                print("This will trigger a full dataset fetch from S3, which might take a considerable amount of time.")
+                user_input = input("Are you sure you want to proceed? (yes/no): ")
+                if user_input.lower() != 'yes':
+                    print("Force reload aborted. Loading from cache instead.")
+                    self.force_reload = False  # Reset force_reload to False
+                else:
+                    print("Proceeding with force reload...")
+                    raise FileNotFoundError
+                
             with open(self.cache_file, 'rb') as f:
-                self._file_list_cache = pickle.load(f)
-                print(f"Loaded {len(self._file_list_cache)} image file paths from cache.")
+                cache_data = pickle.load(f)
+                self._file_list_cache = cache_data[self.split]  # Load the specific split from the cache
+                print(f"Loaded {len(self._file_list_cache)} image file paths from cache for {self.split} split.")
         except FileNotFoundError:
-            self._file_list_cache = self._get_file_list()
-            with open(self.cache_file, 'wb') as f:
-                pickle.dump(self._file_list_cache, f)
-            print(f"Saved {len(self._file_list_cache)} image file paths to cache.")
-            
-        # Split the dataset
-        if self.split in ['train', 'val', 'test']:
-            random.seed(42) 
-            random.shuffle(self._file_list_cache)
-            train_index = int(len(self._file_list_cache) * self.train_split)
-            test_index = int(len(self._file_list_cache) * (self.train_split + self.test_split)) 
-            if self.split == 'train':
-                self._file_list_cache = self._file_list_cache[:train_index]
-            elif self.split == 'test':
-                self._file_list_cache = self._file_list_cache[train_index:test_index]
-            else: 
-                self._file_list_cache = self._file_list_cache[test_index:]
+            file_list = self._get_file_list()
+            random.seed(42)  # Set a seed for reproducibility
+            random.shuffle(file_list)
+            train_index = int(len(file_list) * self.train_split)
+            test_index = int(len(file_list) * (self.train_split + self.test_split))
 
-    
+            cache_data = {
+                'train': file_list[:train_index],
+                'test': file_list[train_index:test_index],
+                'val': file_list[test_index:]
+            }
+
+            with open(self.cache_file, 'wb') as f:
+                pickle.dump(cache_data, f)
+            print(f"Saved {len(file_list)} image file paths to cache, split into train, val, and test sets.")
+
+            self._file_list_cache = cache_data[self.split]  # Load the specific split from the cache
+        
     def _get_file_list(self):
         """
         Fetches the list of image file paths from S3 in chunks.
@@ -225,7 +235,8 @@ if __name__ == "__main__":
     # Dataloader and Processor
     config = DTrOCRConfig(lang=dataset_conf['language'])
     processor = DTrOCRProcessor(config, add_bos_token=True, add_eos_token=True)
-    
+    print("Preparing datset...")
+    print("If this is the first time running the script, it will take a long time to fetch the dataset.")
     train_dataset = S3ImageDataset(
         dataset_conf['bucket_name'], 
         dataset_conf['folder'], 
@@ -242,21 +253,21 @@ if __name__ == "__main__":
         dataset_conf['folder'], 
         processor, 
         cache_file=dataset_conf['cache_file'], 
-        force_reload=dataset_conf['force_reload'],
         split='test',
-        train_split=dataset_conf['split']['train'],
-        test_split=dataset_conf['split']['test'],
+        # force_reload=dataset_conf['force_reload'],
+        # train_split=dataset_conf['split']['train'],
+        # test_split=dataset_conf['split']['test'],
     )
     
     val_dataset = S3ImageDataset(
         dataset_conf['bucket_name'], 
         dataset_conf['folder'], 
         processor, 
-        cache_file=dataset_conf['cache_file'], 
-        force_reload=dataset_conf['force_reload'],
-        split='val',
-        train_split=dataset_conf['split']['train'],
-        test_split=dataset_conf['split']['test'],
+        cache_file=dataset_conf['cache_file'],
+        split='val', 
+        # force_reload=dataset_conf['force_reload'],
+        # train_split=dataset_conf['split']['train'],
+        # test_split=dataset_conf['split']['test'],
     )
     
     print(f"Train split has: {train_dataset.__len__()} images")
