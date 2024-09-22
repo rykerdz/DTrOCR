@@ -10,7 +10,6 @@ import pickle
 import argparse
 import yaml
 import random
-from typing import Tuple
 import os
 import re
 import evaluate
@@ -130,63 +129,66 @@ class S3ImageDataset(Dataset):
             obj = self.bucket.get_object(Bucket=self.bucket_name, Key=file_key)
             img = Image.open(obj['Body']).convert('RGB')
             label = re.sub(r'generated_images/img_\d+_|\.png', '', file_key).replace("_", " ")
-            inputs = self.processor(
-                images=img,
-                texts=label,
-                padding='max_length',
-                return_labels=True,
-                return_tensors="pt"
-            )
-            return {
-                'pixel_values': inputs.pixel_values[0],
-                'input_ids': inputs.input_ids[0],
-                'attention_mask': inputs.attention_mask[0],
-                'labels': inputs.labels[0]
-            }
+            
+            # Handle val, test and train separately
+            if self.split == 'train':
+                inputs = self.processor(
+                    images=img,
+                    texts=label,
+                    padding='max_length',
+                    return_labels=True,
+                    return_tensors="pt"
+                )
+                return {
+                    'pixel_values': inputs.pixel_values[0],
+                    'input_ids': inputs.input_ids[0],
+                    'attention_mask': inputs.attention_mask[0],
+                    'labels': inputs.labels[0]
+                }
+            else: # val and test 
+                inputs = self.processor(
+                    images=img,
+                    texts=self.processor.tokenizer.bos_token,
+                    return_tensors="pt"
+                )
+                tokenized_label = self.processor(
+                  texts=label, 
+                  padding='max_length',
+                  return_tensors="pt"
+                ).input_ids
+                
+                return {
+                    'pixel_values': inputs.pixel_values[0],
+                    'input_ids': inputs.input_ids[0],
+                    'attention_mask': inputs.attention_mask[0],
+                    'labels': tokenized_label[0]
+                }
+                
         except Exception as e:
             print(f"Error loading image from S3: {e}")
             return None  # Return None in case of error
-      
-# Evaluate func borrowed from IAM notebook  
-def evaluate_model_acc(model: torch.nn.Module, dataloader: DataLoader) -> Tuple[float, float]:
-    model.eval()
-    loss, accuracy = [], []
-    with torch.no_grad():
-        for i, inputs in enumerate(dataloader):
-            inputs = send_inputs_to_device(inputs, device=0)
-            outputs = model(**inputs)
-            loss.append(outputs.loss.item())
-            accuracy.append(outputs.accuracy.item())
-
-            if i % 100 == 0:  # Print progress every 100 batches
-                print(f"Evaluating: Batch {i}/{len(dataloader)}")
-
-    loss = sum(loss) / len(loss)
-    accuracy = sum(accuracy) / len(accuracy)
-    model.train()
-    return loss, accuracy
+    
 
 
-def evaluate_model_cer(model: torch.nn.Module, dataloader: DataLoader, processor: DTrOCRProcessor) -> float:
+def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, processor: DTrOCRProcessor) -> float:
     model.eval()
     all_predictions, all_labels = [], [] 
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
-            # cast to a DTrOCRProcessorOutput
             inputs = DTrOCRProcessorOutput(
-                pixel_values=batch['pixel_values'],
-                input_ids=batch['input_ids'],
-                attention_mask=batch['attention_mask'],
-                labels=batch['labels']
+              pixel_values=batch['pixel_values'].to(device),
+              input_ids=batch['input_ids'].to(device),
+              attention_mask=batch['attention_mask'].to(device),
+              labels=batch['labels'].to(device)
             )
-            inputs = send_inputs_to_device(inputs, device=device)
 
             generated_ids = model.generate(
                 inputs=inputs, 
-                processor=processor
+                processor=processor,
+                num_beams=3
             )
             generated_text = processor.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-            labels = processor.tokenizer.batch_decode(batch["labels"], skip_special_tokens=True)
+            labels = processor.tokenizer.batch_decode(inputs.labels, skip_special_tokens=True)
 
             all_predictions.extend(generated_text)
             all_labels.extend(labels)
@@ -195,9 +197,8 @@ def evaluate_model_cer(model: torch.nn.Module, dataloader: DataLoader, processor
                 print(f"Evaluating: Batch {i}/{len(dataloader)}")
 
     results = ev_metric.compute(predictions=all_predictions, references=all_labels)
-    avg_cer = results["cer"] 
     model.train()
-    return avg_cer
+    return results
 
 def send_inputs_to_device(dictionary, device):
     return {key: value.to(device=device) if isinstance(value, torch.Tensor) else value for key, value in dictionary.items()}
@@ -338,10 +339,8 @@ if __name__ == "__main__":
                     print(f"Epoch: {epoch + 1} - Train loss: {train_loss}, Train accuracy: {train_accuracy}")
 
                     # Evaluate the model
-                    val_loss, val_accuracy = evaluate_model_acc(model, val_loader)
-                    print(f"Validation Loss: {val_loss}, Validation Accuracy: {val_accuracy}") 
-                    val_cer = evaluate_model_cer(model, val_loader, processor)
-                    print(f"Validation CER: {val_cer}")
+                    val_metric = evaluate_model(model, val_loader, processor)
+                    print(f"Validation CER: {val_metric}")
                     
                 # Checkpointing
                 if batch_idx % train_conf['save_every_n_batches'] == 0 or batch_idx == len(train_loader) - 1:
