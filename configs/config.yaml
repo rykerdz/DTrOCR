@@ -6,7 +6,7 @@ project:
     bucket_name: ocr88
     folder: generated_images/
     language: ar 
-    num_workers: 4
+    num_workers: 2
     prefetch_factor: 20
     batch_size: 32
     force_reload: False
@@ -22,7 +22,7 @@ project:
     num_epochs: 1
     learning_rate: 1e-4
     save_every_n_batches: 10000
-    validate_every_n_batches: 1000
+    validate_every_n_batches: 10
     print_every_n_batches: 10
     evaluation_metric: cer
 
