@@ -284,14 +284,14 @@ if __name__ == "__main__":
     test_loader = DataLoader(
         test_dataset, 
         batch_size=dataset_conf['batch_size'], 
-        shuffle=True, 
+        # shuffle=True, 
         num_workers=dataset_conf['num_workers'], 
         prefetch_factor=dataset_conf['prefetch_factor'])
     
     val_loader = DataLoader(
         val_dataset, 
         batch_size=dataset_conf['batch_size'], 
-        shuffle=True, 
+        # shuffle=True, 
         num_workers=dataset_conf['num_workers'], 
         prefetch_factor=dataset_conf['prefetch_factor'])
     
@@ -302,7 +302,7 @@ if __name__ == "__main__":
     model.train()  # set model to training mode
 
     # Mixed Precision Setup
-    use_amp = True
+    use_amp = train_conf['use_amp']
     scaler = torch.amp.GradScaler('cuda', enabled=use_amp)
 
     # Move model to GPU
@@ -358,3 +358,7 @@ if __name__ == "__main__":
                     checkpoint_name = f"{save_path}/checkpoint_batch{batch_idx}.pth" 
                     torch.save(model.state_dict(), checkpoint_name)
                     print(f"Saved checkpoint: {checkpoint_name}")
+                    
+    # test the model
+    test_metric = evaluate_model(model, test_loader, processor)
+    print(f"Test CER: {test_metric}")
