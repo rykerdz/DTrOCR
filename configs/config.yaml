@@ -25,4 +25,5 @@ project:
     validate_every_n_batches: 10
     print_every_n_batches: 10
     evaluation_metric: cer
+    use_amp: True
 
