@@ -106,6 +106,8 @@ class S3ImageDataset(Dataset):
         file_list = [] 
 
         while True:
+            print(f"Fetched {count} images so far...", end='\r')  
+
             list_objects_params = {
                 'Bucket': self.bucket_name,
                 'Prefix': self.folder
@@ -118,8 +120,9 @@ class S3ImageDataset(Dataset):
 
             # Filter for image files and add to the list
             if 'Contents' in response:
-                file_list.extend([obj['Key'] for obj in response['Contents'] if obj['Key'].endswith(('.jpg', '.png', '.jpeg'))])
-                count += len(response['Contents'])
+                new_files = [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith(('.jpg', '.png', '.jpeg'))]
+                file_list.extend(new_files)
+                count += len(new_files) 
 
             # Check if there are more objects to retrieve
             if response.get('IsTruncated'):
