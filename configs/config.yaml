@@ -2,6 +2,9 @@ project:
   language: ar
   exp_name: DTrOCR_500m_1ep
 
+  generation:
+    num_beams: 4
+
   dataset:
     bucket_name: ocr88
     folder: generated_images/
@@ -9,7 +12,7 @@ project:
     num_workers: 2
     prefetch_factor: 20
     batch_size: 32
-    force_reload: True
+    force_reload: False
     cache_file: cache/file_list_2m.pkl
 
     split:

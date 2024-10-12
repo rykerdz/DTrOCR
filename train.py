@@ -183,7 +183,7 @@ class S3ImageDataset(Dataset):
     
 
 
-def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, processor: DTrOCRProcessor) -> float:
+def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, processor: DTrOCRProcessor, generation_conf) -> float:
     model.eval()
     all_predictions, all_labels = [], [] 
     with torch.no_grad():
@@ -198,7 +198,7 @@ def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, processor: DT
             generated_ids = model.generate(
                 inputs=inputs, 
                 processor=processor,
-                num_beams=3
+                num_beams=generation_conf['num_beams']
             )
             generated_text = processor.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
             labels = processor.tokenizer.batch_decode(inputs.labels, skip_special_tokens=True)
@@ -230,6 +230,7 @@ if __name__ == "__main__":
         config_data = yaml.safe_load(f)
         dataset_conf = config_data['project']['dataset']
         train_conf = config_data['project']['train']
+        generation_conf = config_data['project']['generation']
     
     # exp save dir
     save_path = f"{config_data['project']['language']}_{config_data['project']['exp_name']}"
@@ -353,7 +354,7 @@ if __name__ == "__main__":
                     print(f"Epoch: {epoch + 1} - Train loss: {train_loss}, Train accuracy: {train_accuracy}")
 
                     # Evaluate the model
-                    val_metric = evaluate_model(model, val_loader, processor)
+                    val_metric = evaluate_model(model, val_loader, processor, generation_conf)
                     print(f"Validation CER: {val_metric}")
                     
                 # Checkpointing
