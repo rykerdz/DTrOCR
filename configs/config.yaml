@@ -10,8 +10,8 @@ project:
     folder: generated_images/
     language: ar 
     num_workers: 2
-    prefetch_factor: 20
-    batch_size: 32
+    prefetch_factor: 300
+    batch_size: 176
     force_reload: False
     cache_file: cache/file_list_2m.pkl
 

@@ -329,7 +329,7 @@ if __name__ == "__main__":
                 continue
 
             optimizer.zero_grad()
-            batch = send_inputs_to_device(batch, device=0)  # Send batch to GPU
+            batch = send_inputs_to_device(batch, device=device)  # Send batch to GPU
 
             with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
                 outputs = model(**batch)
