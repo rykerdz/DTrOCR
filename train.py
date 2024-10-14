@@ -188,26 +188,30 @@ def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, processor: DT
     all_predictions, all_labels = [], [] 
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
-            inputs = DTrOCRProcessorOutput(
-              pixel_values=batch['pixel_values'].to(device),
-              input_ids=batch['input_ids'].to(device),
-              attention_mask=batch['attention_mask'].to(device),
-              labels=batch['labels'].to(device)
-            )
-
-            generated_ids = model.generate(
-                inputs=inputs, 
-                processor=processor,
-                num_beams=generation_conf['num_beams']
-            )
-            generated_text = processor.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-            labels = processor.tokenizer.batch_decode(inputs.labels, skip_special_tokens=True)
-
-            all_predictions.extend(generated_text)
-            all_labels.extend(labels)
-
-            if i % 100 == 0:
-                print(f"Evaluating: Batch {i}/{len(dataloader)}")
+            if None in batch:
+                continue
+                
+            else:
+                inputs = DTrOCRProcessorOutput(
+                  pixel_values=batch['pixel_values'].to(device),
+                  input_ids=batch['input_ids'].to(device),
+                  attention_mask=batch['attention_mask'].to(device),
+                  labels=batch['labels'].to(device)
+                )
+    
+                generated_ids = model.generate(
+                    inputs=inputs, 
+                    processor=processor,
+                    num_beams=generation_conf['num_beams']
+                )
+                generated_text = processor.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+                labels = processor.tokenizer.batch_decode(inputs.labels, skip_special_tokens=True)
+    
+                all_predictions.extend(generated_text)
+                all_labels.extend(labels)
+    
+                if i % 100 == 0:
+                    print(f"Evaluating: Batch {i}/{len(dataloader)}")
 
     results = ev_metric.compute(predictions=all_predictions, references=all_labels)
     model.train()
@@ -325,7 +329,7 @@ if __name__ == "__main__":
     for epoch in range(train_conf['num_epochs']):
         losses, accuracy = [], []
         for batch_idx, batch in enumerate(train_loader):
-            if batch is None:
+            if None in batch:
                 continue
 
             optimizer.zero_grad()
