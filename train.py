@@ -13,6 +13,7 @@ import random
 import os
 import re
 import evaluate
+from torch.utils.data import default_collate
 
 # Dataset Class
 class S3ImageDataset(Dataset):
