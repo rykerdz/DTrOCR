@@ -54,12 +54,6 @@ class S3ImageDataset(Dataset):
         self.test_split = test_split
         self._load_or_create_cache()
             
-        # Define the default values
-        self.default_pixel_values = torch.zeros((3, 128, 128))  # Replace with your desired shape
-        self.default_input_ids = torch.tensor([self.processor.tokenizer.pad_token_id])  # Default for input_ids
-        self.default_attention_mask = torch.zeros((1, 128))  # Adjust dimensions accordingly
-        self.default_labels = torch.tensor([self.processor.tokenizer.pad_token_id])  # Default for labels
-
     def _load_or_create_cache(self):
         """
         Loads the file list from cache or creates it by fetching from S3 and splitting it.
@@ -188,24 +182,16 @@ class S3ImageDataset(Dataset):
         except Exception as e:
             print(f"Error loading image from S3: {e}")
             # Return default values in case of error
-            return {
-                'pixel_values': self.default_pixel_values,
-                'input_ids': self.default_input_ids,
-                'attention_mask': self.default_attention_mask,
-                'labels': self.default_labels
-            }
-    
+            return None
 
 
-def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, processor: DTrOCRProcessor, generation_conf, dataset) -> float:
+def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, processor: DTrOCRProcessor, generation_conf) -> float:
     model.eval()
     all_predictions, all_labels = [], [] 
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
-            if (batch['pixel_values'] == dataset.default_pixel_values).all().item():
-                print(f"Skipping batch {batch_idx} due to loading errors.")
-                continue  # Skip this batch
-                
+            if batch is None or None in batch:
+                continue
             else:
                 inputs = DTrOCRProcessorOutput(
                   pixel_values=batch['pixel_values'].to(device),
@@ -235,6 +221,10 @@ def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, processor: DT
 def send_inputs_to_device(dictionary, device):
     return {key: value.to(device=device) if isinstance(value, torch.Tensor) else value for key, value in dictionary.items()}
 
+
+def custom_collate_fn(batch):
+    batch = [b for b in batch if b is not None]  # Filter out None
+    return default_collate(batch)
 
 ev_metric = None
 
@@ -302,21 +292,27 @@ if __name__ == "__main__":
         batch_size=dataset_conf['batch_size'], 
         shuffle=True, 
         num_workers=dataset_conf['num_workers'], 
-        prefetch_factor=dataset_conf['prefetch_factor'])
+        prefetch_factor=dataset_conf['prefetch_factor'],
+        collate_fn=custom_collate_fn,
+    )
     
     test_loader = DataLoader(
         test_dataset, 
         batch_size=dataset_conf['batch_size'], 
         # shuffle=True, 
         num_workers=dataset_conf['num_workers'], 
-        prefetch_factor=dataset_conf['prefetch_factor'])
+        prefetch_factor=dataset_conf['prefetch_factor'],
+        collate_fn=custom_collate_fn,
+    )
     
     val_loader = DataLoader(
         val_dataset, 
         batch_size=dataset_conf['batch_size'], 
         # shuffle=True, 
         num_workers=dataset_conf['num_workers'], 
-        prefetch_factor=dataset_conf['prefetch_factor'])
+        prefetch_factor=dataset_conf['prefetch_factor'],
+        collate_fn=custom_collate_fn,
+    )
     
     print("Dataset in ready!")
 
@@ -344,9 +340,8 @@ if __name__ == "__main__":
     for epoch in range(train_conf['num_epochs']):
         losses, accuracy = [], []
         for batch_idx, batch in enumerate(train_loader):
-            if (batch['pixel_values'] == train_dataset.default_pixel_values).all().item():
-                print(f"Skipping batch {batch_idx} due to loading errors.")
-                continue  # Skip this batch
+            if batch is None or None in batch:
+                continue
 
             optimizer.zero_grad()
             batch = send_inputs_to_device(batch, device=device)  # Send batch to GPU
@@ -374,7 +369,7 @@ if __name__ == "__main__":
                     print(f"Epoch: {epoch + 1} - Train loss: {train_loss}, Train accuracy: {train_accuracy}")
 
                     # Evaluate the model
-                    val_metric = evaluate_model(model, val_loader, processor, generation_conf, val_dataset)
+                    val_metric = evaluate_model(model, val_loader, processor, generation_conf)
                     print(f"Validation CER: {val_metric}")
                     
                 # Checkpointing
@@ -384,5 +379,5 @@ if __name__ == "__main__":
                     print(f"Saved checkpoint: {checkpoint_name}")
                     
     # test the model
-    test_metric = evaluate_model(model, test_loader, processor, generation_conf, test_dataset)
+    test_metric = evaluate_model(model, test_loader, processor, generation_conf)
     print(f"Test CER: {test_metric}")
