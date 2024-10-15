@@ -53,6 +53,12 @@ class S3ImageDataset(Dataset):
         self.train_split = train_split
         self.test_split = test_split
         self._load_or_create_cache()
+            
+        # Define the default values
+        self.default_pixel_values = torch.zeros((3, height, width))  # Replace with your desired shape
+        self.default_input_ids = torch.tensor([self.processor.tokenizer.pad_token_id])  # Default for input_ids
+        self.default_attention_mask = torch.zeros((1, width))  # Adjust dimensions accordingly
+        self.default_labels = torch.tensor([self.processor.tokenizer.pad_token_id])  # Default for labels
 
     def _load_or_create_cache(self):
         """
@@ -93,6 +99,8 @@ class S3ImageDataset(Dataset):
             print(f"Saved {len(file_list)} image file paths to cache, split into train, val, and test sets.")
 
             self._file_list_cache = cache_data[self.split]  # Load the specific split from the cache
+
+        
         
     def _get_file_list(self):
         """
@@ -179,17 +187,24 @@ class S3ImageDataset(Dataset):
                 
         except Exception as e:
             print(f"Error loading image from S3: {e}")
-            return None  # Return None in case of error
+            # Return default values in case of error
+            return {
+                'pixel_values': self.default_pixel_values,
+                'input_ids': self.default_input_ids,
+                'attention_mask': self.default_attention_mask,
+                'labels': self.default_labels
+            }
     
 
 
-def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, processor: DTrOCRProcessor, generation_conf) -> float:
+def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, processor: DTrOCRProcessor, generation_conf, dataset) -> float:
     model.eval()
     all_predictions, all_labels = [], [] 
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
-            if None in batch:
-                continue
+            if (batch['pixel_values'] == dataset.default_pixel_values).all().item():
+                print(f"Skipping batch {batch_idx} due to loading errors.")
+                continue  # Skip this batch
                 
             else:
                 inputs = DTrOCRProcessorOutput(
@@ -329,8 +344,9 @@ if __name__ == "__main__":
     for epoch in range(train_conf['num_epochs']):
         losses, accuracy = [], []
         for batch_idx, batch in enumerate(train_loader):
-            if None in batch:
-                continue
+            if (batch['pixel_values'] == train_dataset.default_pixel_values).all().item():
+                print(f"Skipping batch {batch_idx} due to loading errors.")
+                continue  # Skip this batch
 
             optimizer.zero_grad()
             batch = send_inputs_to_device(batch, device=device)  # Send batch to GPU
@@ -358,7 +374,7 @@ if __name__ == "__main__":
                     print(f"Epoch: {epoch + 1} - Train loss: {train_loss}, Train accuracy: {train_accuracy}")
 
                     # Evaluate the model
-                    val_metric = evaluate_model(model, val_loader, processor, generation_conf)
+                    val_metric = evaluate_model(model, val_loader, processor, generation_conf, val_dataset)
                     print(f"Validation CER: {val_metric}")
                     
                 # Checkpointing
@@ -368,5 +384,5 @@ if __name__ == "__main__":
                     print(f"Saved checkpoint: {checkpoint_name}")
                     
     # test the model
-    test_metric = evaluate_model(model, test_loader, processor)
+    test_metric = evaluate_model(model, test_loader, processor, generation_conf, test_dataset)
     print(f"Test CER: {test_metric}")
