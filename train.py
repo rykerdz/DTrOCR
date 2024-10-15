@@ -55,9 +55,9 @@ class S3ImageDataset(Dataset):
         self._load_or_create_cache()
             
         # Define the default values
-        self.default_pixel_values = torch.zeros((3, 224, 224))  # Replace with your desired shape
+        self.default_pixel_values = torch.zeros((3, 128, 128))  # Replace with your desired shape
         self.default_input_ids = torch.tensor([self.processor.tokenizer.pad_token_id])  # Default for input_ids
-        self.default_attention_mask = torch.zeros((1, 224))  # Adjust dimensions accordingly
+        self.default_attention_mask = torch.zeros((1, 128))  # Adjust dimensions accordingly
         self.default_labels = torch.tensor([self.processor.tokenizer.pad_token_id])  # Default for labels
 
     def _load_or_create_cache(self):
