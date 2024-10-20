@@ -232,6 +232,7 @@ ev_metric = None
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train DTrOCR model on S3 dataset.')
     parser.add_argument('--config', type=str, default='configs/config.yaml', help='Path to the YAML config file.')
+    parser.add_argument("--resume-from-checkpoint", type=str, default='', help='Path to the pth checkpoint file.')
     
     args = parser.parse_args()
     
@@ -319,6 +320,16 @@ if __name__ == "__main__":
 
     # Model
     model = DTrOCRLMHeadModel(config)
+    
+    
+    try:
+        if args.resume_from_checkpoint != "":
+            model.load_state_dict(torch.load(args.resume_from_checkpoint))
+    except Exception as e:
+        print("Could not load model from checkpoint!")
+        print(e)
+        
+        
     model.train()  # set model to training mode
 
     # Mixed Precision Setup
