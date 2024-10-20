@@ -320,11 +320,17 @@ if __name__ == "__main__":
 
     # Model
     model = DTrOCRLMHeadModel(config)
-    
-    
+    # Optimizer
+    optimizer = torch.optim.AdamW(model.parameters(), lr=float(train_conf['learning_rate']))
+
     try:
         if args.resume_from_checkpoint != "":
-            model.load_state_dict(torch.load(args.resume_from_checkpoint))
+            try:
+                checkpoint = torch.load(args.resume_from_checkpoint)
+                model.load_state_dict(checkpoint['model_state_dict'])
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            except:
+                model.load_state_dict(torch.load(args.resume_from_checkpoint))
     except Exception as e:
         print("Could not load model from checkpoint!")
         print(e)
@@ -341,9 +347,6 @@ if __name__ == "__main__":
     model = model.to(device)
     model.train() 
     
-    # Optimizer
-    optimizer = torch.optim.AdamW(model.parameters(), lr=float(train_conf['learning_rate']))
-
     # Evaluation metric, cer only for now
     if train_conf['evaluation_metric'] == 'cer':
         ev_metric = evaluate.load("cer")  # Load the CER metric
@@ -387,7 +390,12 @@ if __name__ == "__main__":
                 # Checkpointing
                 if batch_idx % train_conf['save_every_n_batches'] == 0 or batch_idx == len(train_loader) - 1:
                     checkpoint_name = f"{save_path}/checkpoint_batch{batch_idx}.pth" 
-                    torch.save(model.state_dict(), checkpoint_name)
+                    torch.save({
+                        'epoch': epoch,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                    }, checkpoint_name)
+                    # torch.save(model.state_dict(), checkpoint_name)
                     print(f"Saved checkpoint: {checkpoint_name}")
                     
     # test the model
